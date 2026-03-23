@@ -4,11 +4,11 @@
 
 [project]
 # 项目名称（自定义）
-name = "Agent_First_Try"
+name = "Online_Search_Agent_Demo"
 # 项目版本（自定义，建议用 0.1.0 开始）
-version = "1.0.0"
+version = "1.0.1"
 # 项目描述（自定义）
-description = "这是一个我尝试写的发送邮件的Agent"
+description = "一个集成了一些可以处理校园中常见的学生需求的联网AgentDemo"
 # 作者信息（自定义）
 authors = [
     { name = "SokolChen", email = "748706752@qq.com" }
