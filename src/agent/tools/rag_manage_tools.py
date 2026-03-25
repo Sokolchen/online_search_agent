@@ -1,0 +1,95 @@
+# src/agent/rag/rag_manage_tools.py
+
+import os
+from langchain.tools import tool
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+
+VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/faiss_index"
+
+
+def load_vectorstore():
+    """
+    加载 FAISS 向量库，返回 vectorstore
+    """
+    if not os.path.exists(os.path.join(VECTOR_DB_PATH, "index.faiss")):
+        raise FileNotFoundError("FAISS index 不存在，请先创建向量库")
+
+    embedding = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        base_url="https://api.shubiaobiao.com/v1"
+    )
+
+    vectorstore = FAISS.load_local(
+        VECTOR_DB_PATH,
+        embedding,
+        allow_dangerous_deserialization=True
+    )
+    return vectorstore
+
+
+@tool
+def rag_list_vectorstore(_: str = "") -> str:
+    """
+    查看当前向量库中存储了哪些文件以及每个文件占用多少 chunks
+    """
+    try:
+        vectorstore = load_vectorstore()
+        # key -> Document 对象
+        docs = vectorstore.docstore._dict  # 内部存储
+        file_chunks = {}
+        for k in docs:
+            metadata = docs[k].metadata
+            file_name = metadata.get("source_file", "未知文件")
+            file_chunks[file_name] = file_chunks.get(file_name, 0) + 1
+
+        if not file_chunks:
+            return "当前向量库为空，没有存储任何 PDF 文件。"
+
+        result_lines = ["当前向量库状态："]
+        total_chunks = 0
+        for f, c in file_chunks.items():
+            result_lines.append(f"- {f}: {c} chunks")
+            total_chunks += c
+        result_lines.append(f"总 chunk 数量: {total_chunks}")
+        return "\n".join(result_lines)
+
+    except Exception as e:
+        return f"查看向量库失败，可能原因:\n1. 向量库未创建\n2. 文件损坏\n错误信息: {str(e)}"
+
+
+@tool
+def rag_delete_pdf(file_name: str) -> str:
+    """
+    删除指定 PDF 的向量数据
+    """
+    try:
+        vectorstore = load_vectorstore()
+        docs_dict = vectorstore.docstore._dict  # 取一次 snapshot
+        docs_to_delete = [
+            k for k, doc in docs_dict.items()
+            if doc.metadata.get("source_file") == file_name
+        ]
+
+        if not docs_to_delete:
+            return f"未找到名为 {file_name} 的文件在向量库中。"
+
+        # 安全删除
+        deleted_count = 0
+        for k in docs_to_delete:
+            if k in vectorstore.docstore._dict:  # 再次确认存在
+                vectorstore.docstore.delete(k)
+                deleted_count += 1
+
+        # 保存 FAISS 向量库
+        vectorstore.save_local(VECTOR_DB_PATH)
+
+        return f"文件 {file_name} 的向量数据已成功删除，删除 {deleted_count} 个 chunk。"
+
+    except Exception as e:
+        return (
+            f"删除失败，可能原因:\n"
+            f"1. 文件不存在\n"
+            f"2. 向量库损坏\n"
+            f"错误信息: {str(e)}"
+        )

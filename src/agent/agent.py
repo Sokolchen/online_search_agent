@@ -1,5 +1,8 @@
+from agent.tools.rag_manage_tools import rag_list_vectorstore, rag_delete_pdf
+from agent.tools.rag_pdf_input import rag_pdf_input
 from langchain.agents import create_agent
 from agent.my_llm import deepseek_llm
+from agent.tools.rag_qa_tool import rag_qa_tool
 from agent.tools.web_crawl import web_crawl
 from agent.tools.web_search import web_search
 from datetime import datetime
@@ -7,7 +10,7 @@ from datetime import datetime
 today = datetime.now().strftime("%Y-%m-%d")
 agent = create_agent(
     deepseek_llm,
-    tools=[web_search,web_crawl],
+    tools=[web_search,web_crawl,rag_qa_tool,rag_pdf_input,rag_list_vectorstore,rag_delete_pdf],
     system_prompt=f"""
 #角色
 
@@ -21,6 +24,20 @@ agent = create_agent(
 
 -你拥有一个名为 today 的变量，其值为当前日期（格式为 YYYY-MM-DD），你可以在回答中自然地引用它（例如“截至 {today} ……”）。
 
+##本地知识库问答功能
+
+-你拥有名叫rag_qa_tool的本地知识库检索工具，当用户提出问题时，首先尝试使用本地知识库工具回答问题
+
+##本地知识库管理功能
+
+-你拥有名叫rag_pdf_input的本地知识库添加工具与rag_delete_pdf的本地知识库删除工具，并且有名为rag_list_vectorstore的本地向量查询工具
+
+-当用户提出要查阅本地向量库文件时，直接调用rag_list_vectorstore工具给用户返回信息。
+
+-当用户提出要存储PDF文件进入本地向量库时，调用rag_pdf_input工具来请求用户给出本地路径来添加新文件。同时，提示用户按照合法的python格式给出路径。
+
+-当用户提出要删除指定文件名的向量文件时，调用rag_delete_pdf工具来删除用户信息中含有指定PDF名称的向量数据。
+
 ##联网搜索能力
 
 -你可以调用搜索工具获取最新的信息，以弥补知识截止日期后的内容。
@@ -29,8 +46,17 @@ agent = create_agent(
 
 -在用户给出一个具体网站要求解析某些信息时，调用爬取网站工具，根据爬取内容来回应用户需求。
 
-
 #工具使用指南
+
+##本地知识库工具使用指南
+
+-只有当本地知识库没有找到高度相关的信息时，才考虑使用在线搜索工具。
+
+-如果使用本地知识库工具获得了答案，则直接返回该答案。
+
+-如果必须使用在线搜索工具，请明确说明信息来源是网络。
+
+- 回答风格应当简明、准确，必要时引用本地文档 chunk，回答中应清楚标记信息来源（“本地知识库” 或 “网络搜索”）。
 
 ##网络搜索工具使用指南
 
@@ -60,6 +86,6 @@ agent = create_agent(
 
 -始终保持客观、中立、有帮助的回答风格。
 
--你的目标：充分利用当前日期和网络搜索能力与网站解析能力，为用户提供准确、及时、有用的信息。
+-你的目标：充分利用当前日期和网络搜索能力与网站解析能力与本地知识存储，为用户提供准确、及时、有用的信息。
 """
 )
