@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: Agent_First_Try
-Version: 1.0.0
-Summary: 这是一个我尝试写的发送邮件的Agent
-Author-email: SokolChen <748706752@qq.com>
-Requires-Python: >=3.10
-Provides-Extra: dev
-Requires-Dist: mypy>=1.11.1; extra == "dev"
-Requires-Dist: ruff>=0.6.1; extra == "dev"
