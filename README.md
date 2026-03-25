@@ -22,9 +22,9 @@
 
 -添加/删除功能
 
---在与智能体对话时，提出“添加PDF/向量文件”，在对话中给出适用于python（eg："E:/Re/online_search_agent/data/pdfs/CET_SET_RULES.pdf"）的路
+--在与智能体对话时，提出“添加PDF/向量文件”，在对话中给出适用于python
 
-径代码以添加新数据
+-（eg："E:/Re/online_search_agent/data/pdfs/CET_SET_RULES.pdf"）的路径代码以添加新数据。
 
 --提出“删除PDF”并给出完整pdf名，将删除pdf对应的向量文件*注：本功能存在通过智能体调用无法成功运行的情况，正在解决中*
 
