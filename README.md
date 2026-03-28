@@ -26,7 +26,7 @@
 
 -（eg："E:/Re/online_search_agent/data/pdfs/CET_SET_RULES.pdf"）的路径代码以添加新数据。
 
---提出“删除PDF”并给出完整pdf名，将删除pdf对应的向量文件（*注：本功能存在通过智能体调用无法成功运行的情况，正在解决中*）
+--提出“删除PDF”并给出完整pdf名，将删除pdf对应的向量文件
 
 -对话查询知识功能
 
