@@ -1,29 +1,50 @@
 from typing import Optional, Tuple
 import bs4
+from agent.my_llm import deepseek_llm
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_core.tools import tool
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from langchain_classic.chains.history_aware_retriever import create_history_aware_retriever
+from langchain_classic.chains.retrieval import create_retrieval_chain
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnableWithMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
 
-#基于bs4与WebBaseLoader实现的简单推文网站爬取Tool
-@tool("web_crawl",parse_docstring=True)
+
+# 会话历史存储
+store = {}
+def get_session_history(session_id: str):
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]
+
+@tool("web_crawl", parse_docstring=True)
 def web_crawl(
-        url:str,
-        css_classes:Optional[Tuple[str,...]]=None
-)->str:
-    """从用户提供的指定网站爬取内容，支持用户按照自定义CSS类名的过滤
+        url: str,
+        question: str,
+        css_classes: Optional[Tuple[str, ...]] = None,
+        session_id: str = "default"
+) -> str:
+    """从指定网站爬取内容并进行RAG问答，可被Agent调用
 
     Args:
-        url:要爬取的网页的url
-        css_classes:用户主动提供的优先提取的css类名元组，用于过滤页面元素，
-        若用户未主动提供，则默认爬取整个网页的内容
+        url: 要爬取的网页URL
+        css_classes: 可选，用户提供的CSS类名元组，用于过滤页面元素
+        session_id: 会话ID，用于保存多轮问答历史
 
+    Returns:
+        返回基于RAG检索后的中文答案
     """
     try:
+        # 1. 爬取网页
         bs_kwargs = {}
         if css_classes:
-            if isinstance(css_classes, str):#检查是否为字符串（用户输入大概率为字符串）
-                css_classes = (css_classes,)#转换为元组
+            if isinstance(css_classes, str):
+                css_classes = (css_classes,)
             bs_kwargs["parse_only"] = bs4.SoupStrainer(class_=css_classes)
-        #转换完成，把参数赋给WebBaseLoader，在有提供类名情况下，工具只解析包含指定 CSS 类名的标签
         loader = WebBaseLoader(
             web_paths=[url],
             bs_kwargs=bs_kwargs,
@@ -31,7 +52,72 @@ def web_crawl(
         docs = loader.load()
         if not docs:
             return "未从对应网址爬取到任何内容"
-        return "\n\n".join(doc.page_content for doc in docs)#实现以两个空行分割的完整字符串输出
+
+        # 2. 文本切割
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        split_docs = splitter.split_documents(docs)
+
+        # 3. 向量化
+        vectorstore = Chroma.from_documents(
+            documents=split_docs,
+            embedding=OpenAIEmbeddings()
+        )
+        retriever = vectorstore.as_retriever()
+
+        # 4. 系统提示
+        system_prompt = """
+        你是一个能处理问答任务的智能助手，用户会使用中文来提问，根据用户提示的网址与要求来爬取网站
+        你必须遵守以下流程：如果目标网站爬取到的为非中文内容，先把用户输入的中文转为与目标网站相同的语言进行理解，再查询文档，最后把文档总结出的内容重新翻译为中文回答。
+        如果不知道答案，就直接说不知道。使用不多于150字的中文回答，在用户提出要减少或者提升总结字数时忽略前一句话的字数限制 。\n
+
+        {context}
+        """
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", system_prompt),
+                MessagesPlaceholder("chat_history"),
+                ("human", "{input}")
+            ]
+        )
+
+        # 5. chain1
+        chain_1 = create_stuff_documents_chain(deepseek_llm, prompt)
+
+        # 6. 历史上下文处理
+        contextualize_q_system_prompt = """给定聊天历史和最新用户问题（可能引用历史上下文），
+请整理成一个独立可理解的问题，不要回答，直接改写问题即可。"""
+        retriever_history_temp = ChatPromptTemplate.from_messages(
+            [
+                ("system", contextualize_q_system_prompt),
+                MessagesPlaceholder("chat_history"),
+                ("human", "{input}")
+            ]
+        )
+        history_chain = create_history_aware_retriever(deepseek_llm, retriever, retriever_history_temp)
+
+        # 7. 父chain组合
+        main_chain = create_retrieval_chain(history_chain, chain_1)
+        result_chain = RunnableWithMessageHistory(
+            main_chain,
+            get_session_history,
+            input_messages_key="input",
+            history_messages_key="chat_history",
+            output_messages_key="answer"
+        )
+
+        # 8. 调用RAG返回答案
+        resp = result_chain.invoke(
+            {
+                "input": question
+            },
+            config={
+                "configurable": {
+                    "session_id": session_id
+                }
+            }
+        )
+        return resp["answer"]
+
     except Exception as e:
-        return f"爬取失败：{e}"
+        return f"爬取或RAG处理失败：{e}"
 

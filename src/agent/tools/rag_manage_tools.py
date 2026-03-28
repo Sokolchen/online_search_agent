@@ -1,10 +1,8 @@
 # src/agent/rag/rag_manage_tools.py
-
 import os
 from langchain.tools import tool
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
-
 VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/faiss_index"
 
 
@@ -28,7 +26,7 @@ def load_vectorstore():
     return vectorstore
 
 
-@tool
+@tool("rag_list_vectorstore", parse_docstring=True)
 def rag_list_vectorstore(_: str = "") -> str:
     """
     查看当前向量库中存储了哪些文件以及每个文件占用多少 chunks
@@ -58,33 +56,36 @@ def rag_list_vectorstore(_: str = "") -> str:
         return f"查看向量库失败，可能原因:\n1. 向量库未创建\n2. 文件损坏\n错误信息: {str(e)}"
 
 
-@tool
+@tool("rag_delete_pdf", parse_docstring=True)
 def rag_delete_pdf(file_name: str) -> str:
     """
     删除指定 PDF 的向量数据
     """
     try:
         vectorstore = load_vectorstore()
-        docs_dict = vectorstore.docstore._dict  # 取一次 snapshot
-        docs_to_delete = [
-            k for k, doc in docs_dict.items()
+
+        docs_dict = vectorstore.docstore._dict
+
+        # 找出属于该文件的 doc ids
+        ids_to_delete = [
+            doc_id
+            for doc_id, doc in docs_dict.items()
             if doc.metadata.get("source_file") == file_name
         ]
 
-        if not docs_to_delete:
+        if not ids_to_delete:
             return f"未找到名为 {file_name} 的文件在向量库中。"
 
-        # 安全删除
-        deleted_count = 0
-        for k in docs_to_delete:
-            if k in vectorstore.docstore._dict:  # 再次确认存在
-                vectorstore.docstore.delete(k)
-                deleted_count += 1
+        # 正确删除（关键）
+        vectorstore.delete(ids=ids_to_delete)
 
-        # 保存 FAISS 向量库
+        # 保存
         vectorstore.save_local(VECTOR_DB_PATH)
 
-        return f"文件 {file_name} 的向量数据已成功删除，删除 {deleted_count} 个 chunk。"
+        return (
+            f"文件 {file_name} 的向量数据已成功删除，"
+            f"删除 {len(ids_to_delete)} 个 chunk。"
+        )
 
     except Exception as e:
         return (

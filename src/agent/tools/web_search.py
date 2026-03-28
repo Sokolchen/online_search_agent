@@ -1,5 +1,4 @@
 from langchain_core.tools import tool
-
 from agent.my_llm import zhipu_ai_client
 #基于智谱AI搜索工具API实现的联网搜索Tool
 #可阅读https://docs.bigmodel.cn/cn/guide/tools/web-search来自定义此工具
@@ -15,7 +14,7 @@ def web_search(query:str) -> str:
     """
     try:
         resp=zhipu_ai_client.web_search.web_search(
-            search_engine="search_std",#可在此更改搜索引擎的编码以获得更高性能引擎
+            search_engine="search_pro",#可在此更改搜索引擎的编码以获得更高性能引擎
             search_query=query
         )
         if resp.search_result:

@@ -1,28 +1,10 @@
 # src/agent/rag/rag_pdf_input.py
-
-"""
-PDF 动态导入工具
-
-作用：
-允许用户在运行时输入 PDF 路径，
-并自动加入 FAISS 向量库。
-
-成功后：
-显示当前已有 PDF 文件列表
-
-失败后：
-提示可能原因
-"""
-
 import os
 from langchain.tools import tool
-
 from agent.rag.pdf_indexer import build_pdf_vectorstore
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
-
-# ========= 向量库路径 =========
 
 VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/faiss_index"
 
@@ -70,31 +52,19 @@ def list_existing_pdfs():
         return []
 
 
-@tool
-def rag_pdf_input(_: str = "") -> str:
+@tool("rag_pdf_input", parse_docstring=True)
+def rag_pdf_input(pdf_path: str) -> str:
     """
     当用户希望向知识库添加新的PDF文件时使用该工具。
-
     例如：
     - 添加新的PDF
     - 导入新的文件
     - 更新知识库
     - 增加新的文档
-
-    工具会请求用户输入 PDF 文件路径。
+    用户需输入 PDF 文件路径。
     """
 
-    print("\n========== PDF IMPORT TOOL ==========\n")
-
-    # ========= 请求用户输入路径 =========
-
-    pdf_path = input(
-        "请输入要添加的 PDF 文件路径：\n"
-    )
-
     pdf_path = pdf_path.strip()
-
-    # ========= 检查路径 =========
 
     if not os.path.exists(pdf_path):
 
@@ -115,17 +85,9 @@ def rag_pdf_input(_: str = "") -> str:
 
     try:
 
-        print("\n正在解析 PDF...\n")
-
-        # ========= 调用 indexer =========
-
         build_pdf_vectorstore(
             [pdf_path]
         )
-
-        print("\nPDF 添加完成。\n")
-
-        # ========= 显示当前库 =========
 
         files = list_existing_pdfs()
 
