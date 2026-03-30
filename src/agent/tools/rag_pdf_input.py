@@ -34,7 +34,7 @@ def list_existing_pdfs():
 
         docs = vectorstore.docstore._dict
 
-        files = set()
+        files = set()#创建不允许重复的集合，保证是1个PDF对多个chunk
 
         for k in docs:
 
@@ -45,7 +45,7 @@ def list_existing_pdfs():
                     metadata["source_file"]
                 )
 
-        return sorted(files)
+        return sorted(files)#排序
 
     except Exception:
 
@@ -64,7 +64,7 @@ def rag_pdf_input(pdf_path: str) -> str:
     用户需输入 PDF 文件路径。
     """
 
-    pdf_path = pdf_path.strip()
+    pdf_path = pdf_path.strip()#删除空格
 
     if not os.path.exists(pdf_path):
 
@@ -76,14 +76,13 @@ def rag_pdf_input(pdf_path: str) -> str:
             "3. 未使用绝对路径\n"
         )
 
-    if not pdf_path.lower().endswith(".pdf"):
-
+    if not pdf_path.lower().endswith(".pdf"):#文件名小写化检查是否为PDF
         return (
             "❌ 解析失败：文件不是 PDF。\n"
             "请提供 .pdf 文件路径。"
         )
 
-    try:
+    try:#使用[]以支持批量处理
 
         build_pdf_vectorstore(
             [pdf_path]
@@ -91,7 +90,7 @@ def rag_pdf_input(pdf_path: str) -> str:
 
         files = list_existing_pdfs()
 
-        if files:
+        if files:#分隔符.join格式+数据
 
             file_list_text = "\n".join(
                 f"- {f}"

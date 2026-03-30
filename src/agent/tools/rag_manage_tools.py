@@ -5,7 +5,8 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/faiss_index"
 
-
+#管理本地PDF向量库，包括删除与查询本地存储情况
+#
 def load_vectorstore():
     """
     加载 FAISS 向量库，返回 vectorstore
@@ -34,16 +35,18 @@ def rag_list_vectorstore(_: str = "") -> str:
     try:
         vectorstore = load_vectorstore()
         # key -> Document 对象
-        docs = vectorstore.docstore._dict  # 内部存储
+        docs = vectorstore.docstore._dict  # 访问内部存储
         file_chunks = {}
-        for k in docs:
+        for k in docs:#遍历文档从metadata中提取indexer中定义的"source_file"来获取文件名
             metadata = docs[k].metadata
             file_name = metadata.get("source_file", "未知文件")
             file_chunks[file_name] = file_chunks.get(file_name, 0) + 1
-
+            #利用字典 file_chunks 累加每个文件对应的 chunk 数量。
+            #get方法在检索遇到某个文件名时返回0，后续遇到时返回已有计数值，+1代表当前检索到的chunk属于该文件
+            #将计算后的新值赋给字典中键为 file_name 的条目。如果该键原本不存在，则创建并赋值；如果已存在，则更新
         if not file_chunks:
             return "当前向量库为空，没有存储任何 PDF 文件。"
-
+        #打印状态
         result_lines = ["当前向量库状态："]
         total_chunks = 0
         for f, c in file_chunks.items():
@@ -67,6 +70,7 @@ def rag_delete_pdf(file_name: str) -> str:
         docs_dict = vectorstore.docstore._dict
 
         # 找出属于该文件的 doc ids
+        #利用列表推导式：创建一个新列表，里面放的是：在docs中满足条件-名字与要删除的文件名相同的元素。
         ids_to_delete = [
             doc_id
             for doc_id, doc in docs_dict.items()
@@ -81,6 +85,7 @@ def rag_delete_pdf(file_name: str) -> str:
 
         # 保存
         vectorstore.save_local(VECTOR_DB_PATH)
+        #本地保存，否则删除只在内存生效，重启后恢复
 
         return (
             f"文件 {file_name} 的向量数据已成功删除，"
