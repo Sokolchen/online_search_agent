@@ -1,44 +1,24 @@
-# ===============================
-# pyproject.toml - LangChain 项目模板
-# ===============================
-
 [project]
-# 项目名称（自定义）
 name = "Online_Search_Agent_Demo"
-# 项目版本（自定义，建议用 0.1.0 开始）
-version = "1.0.1"
-# 项目描述（自定义）
+version = "1.0.2"
 description = "一个集成了一些可以处理校园中常见的学生需求的联网AgentDemo"
-# 作者信息（自定义）
 authors = [
     { name = "SokolChen", email = "748706752@qq.com" }
 ]
-# Python 版本要求（可根据你环境修改）
 requires-python = ">=3.10"
 
+dependencies = [
+    "langchain>=0.1.0",
+    "python-dotenv>=1.0.0",
+    "langchain-deepseek>=0.1.0"
+]
 
 [project.optional-dependencies]
 dev = ["mypy>=1.11.1","ruff>=0.6.1"]
 
-
-# ===============================
-# 项目依赖（这里列出你需要的库）
-# ===============================
-[tool.poetry.dependencies]
-python = "^3.13"
-langchain = "^0.1.0"
-python-dotenv = "^1.0.0"
-langchain-deepseek = "^0.1.0"  # 根据 PyPI 最新版本修改
-
-# ===============================
-# 构建系统配置（Poetry 使用）
-# ===============================
 [build-system]
-requires = ["setuptools>=73.0.0","wheel"]
+requires = ["setuptools>=73.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["langgraph.templates.agent","agent"]
-[tool.setuptools.package-dir]
-"langgraph.templates.agent" = "src/agent"
-"agent" = "src/agent"
+[tool.setuptools.packages.find]
+where = ["src"]

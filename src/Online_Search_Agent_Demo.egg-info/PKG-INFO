@@ -4,6 +4,9 @@ Version: 1.0.2
 Summary: 一个集成了一些可以处理校园中常见的学生需求的联网AgentDemo
 Author-email: SokolChen <748706752@qq.com>
 Requires-Python: >=3.10
+Requires-Dist: langchain>=0.1.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: langchain-deepseek>=0.1.0
 Provides-Extra: dev
 Requires-Dist: mypy>=1.11.1; extra == "dev"
 Requires-Dist: ruff>=0.6.1; extra == "dev"
