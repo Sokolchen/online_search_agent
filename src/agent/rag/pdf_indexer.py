@@ -1,59 +1,58 @@
 # src/agent/rag/pdf_indexer.py
+
 import os
 import pathlib
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain_opendataloader_pdf import OpenDataLoaderPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
 
-#RAG_PDF Part1
+# ⭐ 使用语义切分（新增）
+from langchain_experimental.text_splitter import SemanticChunker
+
+# ⭐ 更新：使用最新 Chroma 包
+from langchain_chroma import Chroma
+
+# RAG_PDF Part1
 # ========= 配置 =========
 
-VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/faiss_index"
+#
+VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
 
 load_dotenv()
 
 
 # ========= 主函数 =========
-
 def build_pdf_vectorstore(pdf_paths):
     """
     建立或追加 PDF 向量数据库。
-
-    参数:
-        pdf_paths: list[str]
-            PDF 文件路径列表
-
-    metadata:
-        source_file: 文件名
-        chunk_index: chunk 编号
     """
 
     if not pdf_paths:
         print("No PDF paths provided.")
         return None
 
-    all_chunks = []#预定义最终存储用向量库的列表
+    all_chunks = []
 
-    embeddings = OpenAIEmbeddings()#设定openai-embeddings模型。
-    #文本切割器
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=150
+    # 固定embedding模型
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small"
+    )
+
+    # ========= ⭐ FIX：语义切分器 =========
+    splitter = SemanticChunker(
+        embeddings=embeddings,
+        breakpoint_threshold_type="percentile"
     )
 
     # ========= 处理每个 PDF =========
-
     for pdf_path in pdf_paths:
 
-        pdf_path_obj = pathlib.Path(pdf_path).resolve() #将路径绝对化并返回Pure path
-        pdf_path_str = pdf_path_obj.as_posix()#返回使用正斜杠（/）的路径字符串:
-
-        pdf_name = pdf_path_obj.name#对Pure path使用.name返回文件名
+        pdf_path_obj = pathlib.Path(pdf_path).resolve()
+        pdf_path_str = pdf_path_obj.as_posix()
+        pdf_name = pdf_path_obj.name
 
         print(f"\nProcessing PDF: {pdf_name}")
-        #默认按照页切割
+
         loader = OpenDataLoaderPDFLoader(
             file_path=pdf_path_str,
             format="markdown",
@@ -61,68 +60,87 @@ def build_pdf_vectorstore(pdf_paths):
         )
 
         try:
-            documents = loader.load()#转化为document的一个list
-
+            documents = loader.load()
         except Exception as e:
             print(f"Error loading {pdf_name}: {e}")
             continue
 
-        if not documents:#document转换失败时报错
+        if not documents:
             print(f"Warning: {pdf_name} returned 0 pages.")
             continue
 
         print(f"Loaded pages: {len(documents)}")
 
-        # ========= 切分 =========
+        # ========= ⭐ FIX：语义切分 =========
+        chunks = splitter.split_documents(documents)
 
-        chunks = splitter.split_documents(documents)#切分文件为数个chunks
+        print("\n===== CHUNKS DEBUG =====")
+
+        for i, chunk in enumerate(chunks[:5]):
+            print(f"\n--- Chunk {i} ---")
+            print("metadata:", chunk.metadata)
 
         print(f"Chunks created: {len(chunks)}")
 
-        # ========= 添加 metadata =========
-        #追踪文件向量去向
-        for i, chunk in enumerate(chunks):#同时获取可迭代对象（如列表、元组等）中每个元素的索引和值‌的内置函数
+        # ========= ⭐ FIX 3：过滤低质量 chunk =========
+        filtered_chunks = []
 
+        for i, chunk in enumerate(chunks):
+
+            text = chunk.page_content.strip()
+
+            # 过滤空/过短 chunk
+            if len(text) < 50:
+                continue
+
+            # 过滤纯表格/噪声
+            if "|" in text:
+                continue
+
+            if text.startswith("Figure") or text.startswith("Table"):
+                continue
+
+            # metadata
             chunk.metadata["source_file"] = pdf_name
             chunk.metadata["chunk_index"] = i
 
-        all_chunks.extend(chunks) #带有元数据的chunk存入开头定义的all_chunks
+            filtered_chunks.append(chunk)
 
-    if not all_chunks:#报错提示
+        all_chunks.extend(filtered_chunks)
+
+    if not all_chunks:
         print("No chunks generated.")
         return None
 
-    # ========= 创建或追加向量库 =========
+    # ========= ⭐ Chroma 加载或创建 =========
 
-    if os.path.exists(VECTOR_DB_PATH):#检查向量库路径
-#重要：首次执行时需保证vectorstore下无其他文件
-        print("\nLoading existing vectorstore...")
-#FAISS.load_local(向量路径, embeddings模型, 显式设置开)
-        vectorstore = FAISS.load_local(
-            VECTOR_DB_PATH,
-            embeddings,
-            allow_dangerous_deserialization=True
+    if os.path.exists(VECTOR_DB_PATH):
+
+        print("\nLoading existing Chroma vectorstore...")
+
+        vectorstore = Chroma(
+            persist_directory=VECTOR_DB_PATH,
+            embedding_function=embeddings,
+            collection_name="pdf_collection"
         )
 
         print("Appending new documents...")
 
-        vectorstore.add_documents(all_chunks)#向已有的向量库中添加新文档
+        vectorstore.add_documents(all_chunks)
 
     else:
-#无目录时直接依照现在的chunks创建新目录
+
         print("\nCreating new vectorstore...")
 
-        vectorstore = FAISS.from_documents(
-            all_chunks,
-            embeddings
+        vectorstore = Chroma.from_documents(
+            documents=all_chunks,
+            embedding=embeddings,
+            persist_directory=VECTOR_DB_PATH,
+            collection_name="pdf_collection"
         )
 
-    # ========= 保存 =========
-
-    vectorstore.save_local(VECTOR_DB_PATH)#保存于本地
-
     print(
-        f"\nVectorstore saved successfully."
+        f"\nChroma vectorstore saved successfully."
         f"\nTotal new chunks added: {len(all_chunks)}"
     )
 

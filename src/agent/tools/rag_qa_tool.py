@@ -1,7 +1,8 @@
 # src/agent/rag/rag_qa_tool.py
 from langchain.tools import tool
 from agent.rag.rag_qa_chain import ask_pdf
-
+from dotenv import load_dotenv
+load_dotenv()
 @tool("rag_qa_tool", parse_docstring=True)
 def rag_qa_tool(question: str) -> str:
     """处理用户关于本地文档内容的问题，并从PDF知识库中检索答案。
@@ -12,10 +13,10 @@ def rag_qa_tool(question: str) -> str:
     - 某文档中的**定义或规则**是什么？
 
     Args:
-        question (str): 用户提出的问题
+        question (str):用户提出的问题
 
     Returns:
-        str: 从PDF知识库中检索并生成的答案，如果查询失败则返回错误信息
+        str:从PDF知识库中检索并生成的答案，如果查询失败则返回错误信息
     """
 
     print("\n[rag_qa_tool] Question received:")

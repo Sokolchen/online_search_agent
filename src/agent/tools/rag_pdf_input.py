@@ -1,44 +1,51 @@
 # src/agent/rag/rag_pdf_input.py
+
 import os
 from langchain.tools import tool
 from agent.rag.pdf_indexer import build_pdf_vectorstore
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
+from dotenv import load_dotenv
+load_dotenv()
+from langchain_chroma import Chroma
 
 
-VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/faiss_index"
+VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
 
 
 def list_existing_pdfs():
     """获取当前向量库中的 PDF 文件列表。
 
     Returns:
-        list[str]: 当前向量库中已存在的 PDF 文件路径列表
+        list[str]: 当前向量库中已存在的 PDF 文件列表
     """
-    index_file = os.path.join(
-        VECTOR_DB_PATH,
-        "index.faiss"
-    )
-
-    if not os.path.exists(index_file):
-        return []
 
     try:
-        embedding = OpenAIEmbeddings()
-        vectorstore = FAISS.load_local(
-            VECTOR_DB_PATH,
-            embedding,
-            allow_dangerous_deserialization=True
+        embedding = OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            base_url="https://api.shubiaobiao.com/v1"
         )
-        docs = vectorstore.docstore._dict
-        files = set()  # 创建不允许重复的集合，保证是1个PDF对多个chunk
 
-        for k in docs:
-            metadata = docs[k].metadata
-            if "source_file" in metadata:
-                files.add(metadata["source_file"])
+        vectorstore = Chroma(
+            persist_directory=VECTOR_DB_PATH,
+            embedding_function=embedding,
+            collection_name="pdf_collection"
+        )
 
-        return sorted(files)  # 排序
+        # ⭐ Chroma 官方方式获取 metadata
+        results = vectorstore.get(include=["metadatas"])
+
+        metadatas = results.get("metadatas", [])
+
+        files = set()
+
+        for meta in metadatas:
+            if not meta:
+                continue
+            if "source_file" in meta:
+                files.add(meta["source_file"])
+
+        return sorted(files)
+
     except Exception:
         return []
 
@@ -72,17 +79,18 @@ def rag_pdf_input(pdf_path: str) -> str:
             "3. 未使用绝对路径\n"
         )
 
-    if not pdf_path.lower().endswith(".pdf"):  # 文件名小写化检查是否为PDF
+    if not pdf_path.lower().endswith(".pdf"):
         return (
             "❌ 解析失败：文件不是 PDF。\n"
             "请提供 .pdf 文件路径。"
         )
 
-    try:  # 使用[]以支持批量处理
+    try:
         build_pdf_vectorstore([pdf_path])
+
         files = list_existing_pdfs()
 
-        if files:  # 分隔符.join格式+数据
+        if files:
             file_list_text = "\n".join(f"- {f}" for f in files)
             return (
                 "✅ PDF 添加成功！\n\n"
@@ -97,8 +105,7 @@ def rag_pdf_input(pdf_path: str) -> str:
             "❌ PDF 解析失败。\n"
             "可能原因：\n"
             "1. PDF 文件损坏\n"
-            "2. Java 未正确安装（OpenDataLoader 依赖）\n"
-            "3. API Key 或 Embedding 失败\n"
-            "4. PDF 内容为空\n\n"
+            "2. Embedding API 失败\n"
+            "3. PDF 内容为空\n\n"
             f"错误信息：{str(e)}"
         )
