@@ -12,7 +12,7 @@ from langchain_classic.chains.retrieval import create_retrieval_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
-
+from langchain_core.runnables import RunnableConfig
 
 # 会话历史存储
 store = {}
@@ -33,6 +33,7 @@ def web_crawl(
     Args:
         url: 要爬取的网页URL
         css_classes: 可选，用户提供的CSS类名元组，用于过滤页面元素
+        question: 用户提出的问题
         session_id: 会话ID，用于保存多轮问答历史
 
     Returns:
@@ -107,15 +108,17 @@ def web_crawl(
         )
 
         # 8. 调用RAG返回答案
+        config = RunnableConfig(
+            configurable={
+                "session_id": session_id
+            }
+        )
+
         resp = result_chain.invoke(
             {
                 "input": question
             },
-            config={
-                "configurable": {
-                    "session_id": session_id
-                }
-            }
+            config=config
         )
         return resp["answer"]
 

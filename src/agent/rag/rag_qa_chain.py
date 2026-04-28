@@ -20,22 +20,22 @@ VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
 
 # 清洗数据
 def clean_chunk_for_qa(chunk: str) -> str:
-    lines = chunk.split("\n")
+    lines = chunk.split("\n")#将 chunk 按换行符 "\n" 拆分成多个字符串
     cleaned = []
 
     for line in lines:
-        line = line.strip()
+        line = line.strip()#删除首尾空白
 
-        if not line:
+        if not line:#跳过空字符串
             continue
 
-        if line.startswith("Figure") or line.startswith("Table"):
+        if line.startswith("Figure") or line.startswith("Table"):#过滤图形与图表
             continue
 
-        if "|" in line:
+        if "|" in line:#过滤有表格符号的行
             continue
 
-        if line.startswith("[") and line.endswith("]"):
+        if line.startswith("[") and line.endswith("]"):#过滤形为[......]的行
             continue
 
         cleaned.append(line)
@@ -48,7 +48,7 @@ class CleanRetriever(BaseRetriever):
 
     base: BaseRetriever
 
-    # ⭐ FIX：统一使用 invoke（Chroma retriever兼容）
+
     def _get_relevant_documents(
         self,
         query: str,
@@ -65,25 +65,28 @@ class CleanRetriever(BaseRetriever):
 
 # QA_PROMPT
 QA_PROMPT = """
-你是一个文档问答助手。
+你是一个严格的文档问答助手。你必须**仅依据**下方【文档】内容回答，不得使用任何外部知识或猜测。
 
-如果用户问题类似：
-- 这个文件讲了什么
-- 这是什么文件
+## 回答规则
+1. 如果用户问“这个文件讲了什么”或类似概括性问题：
+   - 用 3~5 句话概括文档主旨。
+   - 不列条目、不重复、不超过150字。
 
-只用 3~5 句话概括。
+2. 对于其他具体问题：
+   - 如果在【文档】中找到直接答案，请引用相关原文并给出准确回答。
+   - 如果【文档】中**完全没有提及**问题的关键信息，请直接回答：
+     “文档未提及相关内容，无法基于文档作答。”
+   - 如果【文档】中只有**部分相关**内容，请先说明“文档仅提到……”，再说明“未涉及……”。
 
-不要列出详细条目。
-不要重复内容。
-总字数不超过150字。
+3. 绝对禁止补充文档中没有的专业知识、技术对比或背景介绍。
 
-文档：
+## 文档内容
 {context}
 
-问题：
+## 用户问题
 {question}
 
-回答：
+## 回答
 """
 
 prompt = PromptTemplate(
@@ -93,16 +96,16 @@ prompt = PromptTemplate(
 
 
 # ========= 创建 QA Chain =========
-def rag_qa_chain():
+def rag_qa_chain(source_file: str = None):
     """
     加载向量库并创建 RetrievalQA 链
     """
 
-    # ========= ⭐ Chroma retriever =========
+    # ========= Chroma retriever =========
     base_retriever = get_retriever(
-        k=4,
+        k=6,
         embedding_model="text-embedding-3-small",
-        source_file=None   # ⭐ 不强制绑定PDF（由router控制更合理）
+        source_file=source_file
     )
 
     cleaned_retriever = CleanRetriever(base=base_retriever)
@@ -122,18 +125,18 @@ def rag_qa_chain():
 
 
 # ========= 提供单独问答函数 =========
-def ask_pdf(question: str):
+def ask_pdf(question: str, source_file: str = None):
     """
     对 PDF 知识库提问
     """
 
-    qa = rag_qa_chain()
+    qa = rag_qa_chain(source_file=source_file)
 
     retriever = qa.retriever
 
     docs = retriever.invoke(question)
 
-    for i, d in enumerate(docs):
+    for i, d in enumerate(docs):#debug用
         print("\n====================")
         print(f"[{i}] source:", d.metadata.get("source_file"))
         print(f"page:", d.metadata.get("page"))

@@ -6,12 +6,11 @@ from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain_opendataloader_pdf import OpenDataLoaderPDFLoader
 
-# ⭐ 使用语义切分（新增）
+#使用语义切分（新增）
 from langchain_experimental.text_splitter import SemanticChunker
 
-# ⭐ 更新：使用最新 Chroma 包
 from langchain_chroma import Chroma
-
+import re
 # RAG_PDF Part1
 # ========= 配置 =========
 
@@ -22,6 +21,8 @@ load_dotenv()
 
 
 # ========= 主函数 =========
+#采用了SemanticChunker 语义相似度拆分，只在语义差异最大的 5% 位置切分，可能导致chunk过多
+#这个函数需要重写以优化在拥有了文本类型选择函数后，根据返回值确定切分策略，此函数保留为一种通用切割方法
 def build_pdf_vectorstore(pdf_paths):
     """
     建立或追加 PDF 向量数据库。
@@ -38,7 +39,7 @@ def build_pdf_vectorstore(pdf_paths):
         model="text-embedding-3-small"
     )
 
-    # ========= ⭐ FIX：语义切分器 =========
+    # =========语义切分器 =========
     splitter = SemanticChunker(
         embeddings=embeddings,
         breakpoint_threshold_type="percentile"
@@ -51,7 +52,19 @@ def build_pdf_vectorstore(pdf_paths):
         pdf_path_str = pdf_path_obj.as_posix()
         pdf_name = pdf_path_obj.name
 
-        print(f"\nProcessing PDF: {pdf_name}")
+        print(f"\n正在处理 PDF: {pdf_name}")
+
+        already_exists = False
+
+        for chunk in all_chunks:
+            if chunk.metadata.get("source_file") == pdf_name:
+                already_exists = True
+                break
+
+        if already_exists:
+            print(f"\n⚠️ PDF已被处理: {pdf_name}")
+            print("⛔ 正在跳过并停止此PDF的处理")
+            continue
 
         loader = OpenDataLoaderPDFLoader(
             file_path=pdf_path_str,
@@ -71,7 +84,7 @@ def build_pdf_vectorstore(pdf_paths):
 
         print(f"Loaded pages: {len(documents)}")
 
-        # ========= ⭐ FIX：语义切分 =========
+        # =========语义切分=========
         chunks = splitter.split_documents(documents)
 
         print("\n===== CHUNKS DEBUG =====")
@@ -82,7 +95,7 @@ def build_pdf_vectorstore(pdf_paths):
 
         print(f"Chunks created: {len(chunks)}")
 
-        # ========= ⭐ FIX 3：过滤低质量 chunk =========
+        # =========过滤低质量 chunk=========
         filtered_chunks = []
 
         for i, chunk in enumerate(chunks):
@@ -93,14 +106,14 @@ def build_pdf_vectorstore(pdf_paths):
             if len(text) < 50:
                 continue
 
-            # 过滤纯表格/噪声
-            if "|" in text:
+            # 过滤 citation/reference chunk
+            if re.match(r'^\s*-\s*\[\d+\]', text):
                 continue
 
-            if text.startswith("Figure") or text.startswith("Table"):
-                continue
+            # ========= ⭐ FIX：确保 metadata 是独立副本 =========
+            chunk.metadata = dict(chunk.metadata)
 
-            # metadata
+            # ========= ⭐ FIX：统一写入 source_file =========
             chunk.metadata["source_file"] = pdf_name
             chunk.metadata["chunk_index"] = i
 
@@ -112,6 +125,9 @@ def build_pdf_vectorstore(pdf_paths):
         print("No chunks generated.")
         return None
 
+    for chunk in all_chunks:
+        if "source_file" not in chunk.metadata:
+            chunk.metadata["source_file"] = "unknown"
     # ========= ⭐ Chroma 加载或创建 =========
 
     if os.path.exists(VECTOR_DB_PATH):
@@ -145,3 +161,4 @@ def build_pdf_vectorstore(pdf_paths):
     )
 
     return vectorstore
+

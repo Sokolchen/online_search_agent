@@ -31,12 +31,12 @@ def list_existing_pdfs():
             collection_name="pdf_collection"
         )
 
-        # ⭐ Chroma 官方方式获取 metadata
+        #获取 metadata
         results = vectorstore.get(include=["metadatas"])
 
         metadatas = results.get("metadatas", [])
 
-        files = set()
+        files = set()#创建不允许重复集合
 
         for meta in metadatas:
             if not meta:
@@ -54,7 +54,7 @@ def list_existing_pdfs():
 def rag_pdf_input(pdf_path: str) -> str:
     """向本地知识库添加新的 PDF 文件。
 
-    当用户希望向知识库添加新的PDF文件时使用该工具。
+    当用户希望向知识库添加新的PDF文件时使用该工具。添加完成后应告诉用户新增了多少文件
     例如：
     - 添加新的PDF
     - 导入新的文件

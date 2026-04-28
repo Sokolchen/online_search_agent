@@ -16,8 +16,6 @@ load_dotenv()
 
 # 向量库路径常量
 VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
-
-# ⭐ 统一从 .env 读取 API 配置
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
 
@@ -35,9 +33,9 @@ def load_vectorstore(
         Chroma 向量库对象
     """
 
-    # ⭐ 强制统一 embedding 配置（避免 URL 拼接错误）
+    #统一 embedding 配置（避免 URL 拼接错误）
     embeddings = OpenAIEmbeddings(
-        model=embedding_model,  # ✅ 使用形参
+        model=embedding_model,  #使用形参
         api_key=OPENAI_API_KEY,
         base_url=OPENAI_BASE_URL
     )
@@ -63,12 +61,12 @@ def get_retriever(
     """
     创建检索器
 
-    参数:
+    Args:
         k: 返回文档数量
         embedding_model: embedding 模型
         source_file: 指定只检索某个 PDF
 
-    返回:
+    Returns:
         retriever 对象
     """
 
@@ -76,34 +74,36 @@ def get_retriever(
         embedding_model
     )
 
-    # ========= ⭐ Chroma 原生 filter（替代你原来的 Python过滤） =========
-    if source_file is None:
+    # =========Chroma 原生 filter（替代你原来的 Python过滤） =========
 
-        retriever = vectorstore.as_retriever(
-            search_type="mmr",
-            search_kwargs={
-                "k": k,
-                "fetch_k": 20,
-                "lambda_mult": 0.5
-            }
-        )
+    #统一构造 search_kwargs（避免逻辑分叉）
+    search_kwargs = {
+        "k": k,
+        "fetch_k": 20,
+        "lambda_mult": 0.5
+    }
 
+    #仅在合法字符串时添加 filter
+    if source_file is not None:
+        search_kwargs["filter"] = {
+            "source_file": source_file
+        }
+        print(f"Retriever created (filtered by {source_file}, top {k}).")
+    else:
         print(f"Retriever created (global MMR top {k}).")
-        return retriever
 
-    # ========= ⭐ Chroma metadata filter（核心优化） =========
+    #统一创建 retriever（避免两段逻辑不一致）
     retriever = vectorstore.as_retriever(
         search_type="mmr",
-        search_kwargs={
-            "k": k,
-            "fetch_k": 20,
-            "lambda_mult": 0.5,
-            "filter": {
-                "source_file": source_file
-            }
-        }
+        search_kwargs=search_kwargs
     )
 
-    print(f"Retriever created (filtered by {source_file}, top {k}).")
+    if source_file:
+        print(f"Retriever created (filtered by {source_file}).")
+    else:
+        print(f"Retriever created (global search).")
+
+    #DEBUG
+    print("search_kwargs =", search_kwargs)
 
     return retriever
