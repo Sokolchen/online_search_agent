@@ -8,17 +8,17 @@ from langchain_classic.chains.retrieval_qa.base import RetrievalQA
 from agent.rag.vectorstore_utils import get_retriever
 from langchain_core.prompts import PromptTemplate
 
-# RAG_PDF Part3
+# RAG_PDF Part2
 # 定义核心问答工具
 
 # ========= 环境变量 =========
 load_dotenv()
 
-# ========= ⭐ FIX：已迁移到 Chroma（不再使用 FAISS） =========
+# =========设定向量库路径-Chroma=========
 VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
 
 
-# 清洗数据
+# 清洗数据函数定义
 def clean_chunk_for_qa(chunk: str) -> str:
     lines = chunk.split("\n")#将 chunk 按换行符 "\n" 拆分成多个字符串
     cleaned = []

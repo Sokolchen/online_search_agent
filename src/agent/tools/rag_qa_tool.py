@@ -1,4 +1,5 @@
 # src/agent/rag/rag_qa_tool.py
+#创建基于本地向量库的问答链tool
 from langchain.tools import tool
 from agent.rag.rag_qa_chain import ask_pdf
 from dotenv import load_dotenv

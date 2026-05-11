@@ -1,5 +1,5 @@
 # src/agent/rag/rag_pdf_input.py
-
+#处理并向量化传入PDF的tool
 import os
 from langchain.tools import tool
 from agent.rag.pdf_indexer import build_pdf_vectorstore

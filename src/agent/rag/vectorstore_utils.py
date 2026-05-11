@@ -4,9 +4,8 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 
-# ⭐ FIX：FAISS → Chroma
-from langchain_chroma import Chroma
 
+from langchain_chroma import Chroma
 from typing import Optional
 
 # RAG_PDF Part0
@@ -26,21 +25,21 @@ def load_vectorstore(
     """
     加载 Chroma 向量库
 
-    参数:
+    Args:
         embedding_model: 使用的 embedding 模型名称
 
-    返回:
+    Returns:
         Chroma 向量库对象
     """
 
-    #统一 embedding 配置（避免 URL 拼接错误）
+    #统一 embedding 配置
     embeddings = OpenAIEmbeddings(
         model=embedding_model,  #使用形参
         api_key=OPENAI_API_KEY,
         base_url=OPENAI_BASE_URL
     )
 
-    print("Loading Chroma vectorstore...")
+    print("加载Chroma向量库...")
 
     vectorstore = Chroma(
         persist_directory=VECTOR_DB_PATH,
@@ -48,13 +47,13 @@ def load_vectorstore(
         collection_name="pdf_collection"
     )
 
-    print("Vectorstore loaded successfully.")
+    print("Vectorstore配置已完成")
 
     return vectorstore
 
 
 def get_retriever(
-    k: int = 4,
+    k: int = 5,
     embedding_model: str = "text-embedding-3-small",
     source_file: Optional[str] = None
 ):
@@ -64,7 +63,7 @@ def get_retriever(
     Args:
         k: 返回文档数量
         embedding_model: embedding 模型
-        source_file: 指定只检索某个 PDF
+        source_file: 指定只检索某个 PDF（可选）
 
     Returns:
         retriever 对象
@@ -74,34 +73,33 @@ def get_retriever(
         embedding_model
     )
 
-    # =========Chroma 原生 filter（替代你原来的 Python过滤） =========
+    # =========Chroma filter=========
 
-    #统一构造 search_kwargs（避免逻辑分叉）
+    #设定search_kwargs——配置向量检索器的参数
     search_kwargs = {
         "k": k,
         "fetch_k": 20,
         "lambda_mult": 0.5
     }
-
+    """
+    先从数据库中取 fetch_k=20 个最相似的文档作为候选池，并以 lambda_mult=0.5 的比例，在“文档相关性”和“内容多样性”之间取得平衡。
+    lambda_mult越接近0多样性越高，检索内容会尽量覆盖不同主题，避免内容高度重复
+    越接近1则相关性越高，更专注查找更匹配的文档
+    """
     #仅在合法字符串时添加 filter
     if source_file is not None:
         search_kwargs["filter"] = {
             "source_file": source_file
         }
-        print(f"Retriever created (filtered by {source_file}, top {k}).")
+        print(f"Retriever 建立完成 (启用了文件名 {source_file} 过滤, top {k}).")
     else:
-        print(f"Retriever created (global MMR top {k}).")
+        print(f"Retriever 建立完成 (使用了默认 MMR 检索 top {k}).")
 
-    #统一创建 retriever（避免两段逻辑不一致）
+    #接收完所有参数，统一创建 retriever
     retriever = vectorstore.as_retriever(
-        search_type="mmr",
+        search_type="mmr",#mmr让算法把所有结果视为一个整体来考虑，尽量确保信息多元与匹配
         search_kwargs=search_kwargs
     )
-
-    if source_file:
-        print(f"Retriever created (filtered by {source_file}).")
-    else:
-        print(f"Retriever created (global search).")
 
     #DEBUG
     print("search_kwargs =", search_kwargs)

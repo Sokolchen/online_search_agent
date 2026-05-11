@@ -1,5 +1,5 @@
 # src/agent/rag/rag_manage_tools.py
-
+#包含了“查看本地向量存储情况”与“基于文件名metadata的向量删除”相关TOOL
 from langchain.tools import tool
 from langchain_openai import OpenAIEmbeddings
 from dotenv import load_dotenv
@@ -27,7 +27,7 @@ def load_vectorstore():
 
     return vectorstore
 
-
+#Langchain默认tool需要一个接收参数，此处留空
 @tool("rag_list_vectorstore", parse_docstring=True)
 def rag_list_vectorstore(_: str = "") -> str:
     """查看当前向量库中存储的 PDF 文件及每个文件占用的 chunk 数量。

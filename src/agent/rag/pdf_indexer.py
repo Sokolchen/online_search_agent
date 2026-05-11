@@ -11,18 +11,16 @@ from langchain_experimental.text_splitter import SemanticChunker
 
 from langchain_chroma import Chroma
 import re
-# RAG_PDF Part1
+# RAG_PDF Part1 接收传入路径并处理pdf
 # ========= 配置 =========
 
-#
+#需要优化：此代码需要加入PDF分类函数，区分：守则规则类/论文类/普通文本类等输入文本，根据不同的类型文本做不同切割分类来得到更好数据
 VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
 
 load_dotenv()
 
 
 # ========= 主函数 =========
-#采用了SemanticChunker 语义相似度拆分，只在语义差异最大的 5% 位置切分，可能导致chunk过多
-#这个函数需要重写以优化在拥有了文本类型选择函数后，根据返回值确定切分策略，此函数保留为一种通用切割方法
 def build_pdf_vectorstore(pdf_paths):
     """
     建立或追加 PDF 向量数据库。
@@ -52,7 +50,7 @@ def build_pdf_vectorstore(pdf_paths):
         pdf_path_str = pdf_path_obj.as_posix()
         pdf_name = pdf_path_obj.name
 
-        print(f"\n正在处理 PDF: {pdf_name}")
+        print(f"\nProcessing PDF: {pdf_name}")
 
         already_exists = False
 
@@ -62,8 +60,8 @@ def build_pdf_vectorstore(pdf_paths):
                 break
 
         if already_exists:
-            print(f"\n⚠️ PDF已被处理: {pdf_name}")
-            print("⛔ 正在跳过并停止此PDF的处理")
+            print(f"\n⚠️ Processed PDF detected: {pdf_name}")
+            print("⛔ Skipping...")
             continue
 
         loader = OpenDataLoaderPDFLoader(
@@ -87,11 +85,11 @@ def build_pdf_vectorstore(pdf_paths):
         # =========语义切分=========
         chunks = splitter.split_documents(documents)
 
-        print("\n===== CHUNKS DEBUG =====")
-
-        for i, chunk in enumerate(chunks[:5]):
-            print(f"\n--- Chunk {i} ---")
-            print("metadata:", chunk.metadata)
+        # print("\n===== CHUNKS DEBUG =====")#debug用代码，检查返回的chunk是否含有应有的metadata
+        #
+        # for i, chunk in enumerate(chunks[:5]):
+        #     print(f"\n--- Chunk {i} ---")
+        #     print("metadata:", chunk.metadata)
 
         print(f"Chunks created: {len(chunks)}")
 
@@ -110,10 +108,10 @@ def build_pdf_vectorstore(pdf_paths):
             if re.match(r'^\s*-\s*\[\d+\]', text):
                 continue
 
-            # ========= ⭐ FIX：确保 metadata 是独立副本 =========
+            # =========确保 metadata 是独立副本 =========
             chunk.metadata = dict(chunk.metadata)
 
-            # ========= ⭐ FIX：统一写入 source_file =========
+            # =========统一写入 source_file =========
             chunk.metadata["source_file"] = pdf_name
             chunk.metadata["chunk_index"] = i
 
@@ -128,7 +126,7 @@ def build_pdf_vectorstore(pdf_paths):
     for chunk in all_chunks:
         if "source_file" not in chunk.metadata:
             chunk.metadata["source_file"] = "unknown"
-    # ========= ⭐ Chroma 加载或创建 =========
+    # =========Chroma 加载或创建=========
 
     if os.path.exists(VECTOR_DB_PATH):
 
