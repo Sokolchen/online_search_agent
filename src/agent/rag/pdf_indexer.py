@@ -31,16 +31,39 @@ def build_pdf_vectorstore(pdf_paths):
 
     all_chunks = []
 
-    # 固定embedding模型
     embeddings = OpenAIEmbeddings(
         model="text-embedding-3-small"
     )
 
-    # =========语义切分器 =========
     splitter = SemanticChunker(
         embeddings=embeddings,
         breakpoint_threshold_type="percentile"
     )
+
+    # ========= 从向量库获取已入库的 PDF 列表 =========
+    # 等同于一次SQL查询
+    existing_files: set[str] = set()
+    if os.path.exists(VECTOR_DB_PATH):
+        try:
+            existing_store = Chroma(
+                persist_directory=VECTOR_DB_PATH,
+                embedding_function=embeddings,
+                collection_name="pdf_collection"
+            )
+            # 只返回metadata字段，不返回向量
+            results = existing_store.get(include=["metadatas"])
+            for meta in results.get("metadatas", []):
+                #遍历所有 metadata 记录，如果 "metadatas" 键不存在就用空列表兜底
+                if meta and isinstance(meta, dict):
+                    #防止空metadata或类型意外
+                    #集合自动去重
+                    name = meta.get("source_file")
+                    if name:
+                        existing_files.add(name)
+            if existing_files:
+                print(f"向量库中已存在 {len(existing_files)} 个 PDF 文件")
+        except Exception as e:
+            print(f"Warning: 无法读取已有向量库元数据: {e}")
 
     # ========= 处理每个 PDF =========
     for pdf_path in pdf_paths:
@@ -51,18 +74,23 @@ def build_pdf_vectorstore(pdf_paths):
 
         print(f"\nProcessing PDF: {pdf_name}")
 
-        already_exists = False
-
-        for chunk in all_chunks:
-            if chunk.metadata.get("source_file") == pdf_name:
-                already_exists = True
-                break
-
-        if already_exists:
-            print(f"\n⚠️ Processed PDF detected: {pdf_name}")
+        # ========= 1. 查向量库：是否已存在 =========
+        if pdf_name in existing_files:
+            print(f"\n⚠️ PDF already exists in vectorstore: {pdf_name}")
             print("⛔ Skipping...")
             continue
 
+        # ========= 2. 查当前批次：是否重复传入 =========
+        batch_dup = any(
+            chunk.metadata.get("source_file") == pdf_name
+            for chunk in all_chunks
+        )
+        if batch_dup:
+            print(f"\n⚠️ Duplicate in this batch: {pdf_name}")
+            print("⛔ Skipping...")
+            continue
+
+        # ========= 3. 加载 PDF =========
         loader = OpenDataLoaderPDFLoader(
             file_path=pdf_path_str,
             format="markdown",
@@ -81,70 +109,52 @@ def build_pdf_vectorstore(pdf_paths):
 
         print(f"Loaded pages: {len(documents)}")
 
-        # =========语义切分=========
+        # ========= 4. 语义切分 =========
         chunks = splitter.split_documents(documents)
-
-        # print("\n===== CHUNKS DEBUG =====")#debug用代码，检查返回的chunk是否含有应有的metadata
-        #
-        # for i, chunk in enumerate(chunks[:5]):
-        #     print(f"\n--- Chunk {i} ---")
-        #     print("metadata:", chunk.metadata)
-
         print(f"Chunks created: {len(chunks)}")
 
-        # =========过滤低质量 chunk=========
+        # ========= 5. 过滤低质量 chunk =========
         filtered_chunks = []
 
         for i, chunk in enumerate(chunks):
 
             text = chunk.page_content.strip()
 
-            # 过滤空/过短 chunk
             if len(text) < 50:
                 continue
 
-            # 过滤 citation/reference chunk
             if re.match(r'^\s*-\s*\[\d+\]', text):
                 continue
 
-            # =========确保 metadata 是独立副本 =========
             chunk.metadata = dict(chunk.metadata)
-
-            # =========统一写入 source_file =========
             chunk.metadata["source_file"] = pdf_name
             chunk.metadata["chunk_index"] = i
 
             filtered_chunks.append(chunk)
 
         all_chunks.extend(filtered_chunks)
+        existing_files.add(pdf_name)   # ← 标记为已处理，避免批次内重复检查时漏掉
 
     if not all_chunks:
-        print("No chunks generated.")
+        print("No new chunks to add.")
         return None
 
     for chunk in all_chunks:
         if "source_file" not in chunk.metadata:
             chunk.metadata["source_file"] = "unknown"
-    # =========Chroma 加载或创建=========
 
+    # ========= Chroma 加载或创建 =========
     if os.path.exists(VECTOR_DB_PATH):
-
         print("\nLoading existing Chroma vectorstore...")
-
         vectorstore = Chroma(
             persist_directory=VECTOR_DB_PATH,
             embedding_function=embeddings,
             collection_name="pdf_collection"
         )
-
         print("Appending new documents...")
-
         vectorstore.add_documents(all_chunks)
-
     else:
-
         print("\nCreating new vectorstore...")
-
         vectorstore = Chroma.from_documents(
             documents=all_chunks,
             embedding=embeddings,
