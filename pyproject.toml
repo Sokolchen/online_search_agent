@@ -1,4 +1,4 @@
-[project]
+﻿[project]
 name = "Online_Search_Agent_Demo"
 version = "1.0.2"
 description = "一个集成了一些可以处理校园中常见的学生需求的联网AgentDemo"
@@ -8,13 +8,33 @@ authors = [
 requires-python = ">=3.10"
 
 dependencies = [
-    "langchain>=0.1.0",
+    "langchain>=1.0.0",
+    "langchain-core>=1.0.0",
+    "langchain-deepseek>=1.0.0",
+    "langchain-openai>=1.0.0",
+    "langchain-chroma>=1.0.0",
+    "langchain-community>=0.4.0",
+    "langchain-classic>=1.0.0",
+    "langchain-experimental>=0.4.0",
+    "langchain-text-splitters>=1.0.0",
+    "langgraph>=1.0.0",
+    "langgraph-checkpoint>=4.0.0",
+    "langgraph-prebuilt>=1.0.0",
+    "langchain-opendataloader-pdf>=2.0.0",
+    "zai-sdk>=0.2.0",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.0.0",
+    "beautifulsoup4>=4.12.0",
     "python-dotenv>=1.0.0",
-    "langchain-deepseek>=0.1.0"
 ]
 
 [project.optional-dependencies]
-dev = ["mypy>=1.11.1","ruff>=0.6.1"]
+dev = [
+    "mypy>=1.11.1",
+    "ruff>=0.6.1",
+    "pytest>=8.0.0",
+]
 
 [build-system]
 requires = ["setuptools>=73.0.0", "wheel"]

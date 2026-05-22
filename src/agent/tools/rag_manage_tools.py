@@ -1,31 +1,11 @@
 # src/agent/rag/rag_manage_tools.py
 #包含了“查看本地向量存储情况”与“基于文件名metadata的向量删除”相关TOOL
 from langchain.tools import tool
-from langchain_openai import OpenAIEmbeddings
 from dotenv import load_dotenv
 load_dotenv()
-from langchain_chroma import Chroma
-
-VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
+from agent.rag.vectorstore_utils import load_vectorstore
 
 
-def load_vectorstore():
-    """
-    加载 Chroma 向量库。
-    """
-
-    embedding = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        base_url="https://api.shubiaobiao.com/v1"
-    )
-
-    vectorstore = Chroma(
-        persist_directory=VECTOR_DB_PATH,
-        embedding_function=embedding,
-        collection_name="pdf_collection"
-    )
-
-    return vectorstore
 
 #Langchain默认tool需要一个接收参数，此处留空
 @tool("rag_list_vectorstore", parse_docstring=True)

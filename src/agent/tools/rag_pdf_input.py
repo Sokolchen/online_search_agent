@@ -9,7 +9,7 @@ load_dotenv()
 from langchain_chroma import Chroma
 
 
-VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
+from agent.rag.vectorstore_utils import VECTOR_DB_PATH
 
 
 def list_existing_pdfs():

@@ -14,9 +14,6 @@ from langchain_core.prompts import PromptTemplate
 # ========= 环境变量 =========
 load_dotenv()
 
-# =========设定向量库路径-Chroma=========
-VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
-
 
 # 清洗数据函数定义
 def clean_chunk_for_qa(chunk: str) -> str:

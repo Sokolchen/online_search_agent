@@ -15,8 +15,7 @@ import re
 # ========= 配置 =========
 
 #需要优化：此代码需要加入PDF分类函数，区分：守则规则类/论文类/普通文本类等输入文本，根据不同的类型文本做不同切割分类来得到更好数据
-VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
-
+from agent.rag.vectorstore_utils import VECTOR_DB_PATH
 load_dotenv()
 
 

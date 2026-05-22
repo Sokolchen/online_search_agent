@@ -3,20 +3,29 @@
 import os
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
-
-
 from langchain_chroma import Chroma
 from typing import Optional
 
 # RAG_PDF Part0
 # 初始化vectorstore的封装函数 与 创建检索器的封装函数
+#设置DB_PATH
 
 load_dotenv()
 
 # 向量库路径常量
-VECTOR_DB_PATH = "E:/Re/online_search_agent/vectorstore/chroma_db"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
+
+def get_vector_db_path() -> str:
+    path = os.getenv("VECTOR_DB_PATH")
+    if not path:
+        raise RuntimeError(
+            "未设置 VECTOR_DB_PATH，请在 .env 文件中添加：\n"
+            "VECTOR_DB_PATH=E:/Re/online_search_agent/vectorstore/chroma_db"
+        )
+    return path
+
+VECTOR_DB_PATH = get_vector_db_path()
 
 
 def load_vectorstore(
