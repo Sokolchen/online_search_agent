@@ -13,7 +13,8 @@ from langchain_core.prompts import PromptTemplate
 
 # ========= 环境变量 =========
 load_dotenv()
-
+# ========= QA Chain 缓存 =========
+_qa_chain_cache: dict = {}
 
 # 清洗数据函数定义
 def clean_chunk_for_qa(chunk: str) -> str:
@@ -55,8 +56,13 @@ class CleanRetriever(BaseRetriever):
         docs = self.base.invoke(query)
 
         for doc in docs:
-            doc.page_content = clean_chunk_for_qa(doc.page_content)
-
+            # 清洗内容
+            cleaned = clean_chunk_for_qa(doc.page_content)
+            # 提取来源信息
+            source = doc.metadata.get("source_file", "未知文件")
+            page = doc.metadata.get("page", "?")
+            # 在 chunk 顶部插入来源标注，LLM 看到上下文时会自然引用
+            doc.page_content = f"[来源: {source}，第{page}页]\n{cleaned}"
         return docs
 
 
@@ -76,6 +82,9 @@ QA_PROMPT = """
    - 如果【文档】中只有**部分相关**内容，请先说明“文档仅提到……”，再说明“未涉及……”。
 
 3. 绝对禁止补充文档中没有的专业知识、技术对比或背景介绍。
+
+4. 回答中引用具体信息时，必须附带【文档】中以 [来源: ...] 标注的来源信息。
+   格式示例："根据手册规定(source.pdf, 第3页)，操作流程如下……"
 
 ## 文档内容
 {context}
@@ -126,19 +135,27 @@ def ask_pdf(question: str, source_file: str = None):
     """
     对 PDF 知识库提问
     """
+    # ---------- 懒加载 QA Chain ----------
+    cache_key = source_file or "__all__"
+    if cache_key not in _qa_chain_cache:
+        print(f"[ask_pdf] 首次创建 QA chain (key={cache_key})")
+        _qa_chain_cache[cache_key] = rag_qa_chain(source_file=source_file)
+    else:
+        print(f"[ask_pdf] 复用已有 QA chain (key={cache_key})")
 
-    qa = rag_qa_chain(source_file=source_file)
+    qa = _qa_chain_cache[cache_key]
 
+    # ---------- 检索 ----------
     retriever = qa.retriever
-
     docs = retriever.invoke(question)
 
-    for i, d in enumerate(docs):#debug用
+    for i, d in enumerate(docs):
         print("\n====================")
         print(f"[{i}] source:", d.metadata.get("source_file"))
         print(f"page:", d.metadata.get("page"))
         print(d.page_content[:300])
 
+    # ---------- 生成回答 ----------
     result = qa.invoke({"query": question})
 
     return result["result"]

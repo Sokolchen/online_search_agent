@@ -78,15 +78,43 @@ def rag_delete_pdf(file_name: str) -> str:
     try:
         vectorstore = load_vectorstore()
 
-        #Chroma删除方式-按文件名删除
-        vectorstore.delete(
-            where={
-                "source_file": file_name
-            }
+        # 删除前先统计 chunk 数
+        # 更新：直接给出删除处理后的向量库情况
+        results = vectorstore.get(
+            where={"source_file": file_name},
+            include=["metadatas"]
+        )
+        deleted_count = len(results.get("ids", []))
+
+        if deleted_count == 0:
+            return (
+                f"未找到文件 {file_name} 的向量数据，可能已被删除或文件名不匹配。\n"
+                f"提示：请先使用本地向量库列表功能确认文件是否已入库。"
+            )
+
+        # 执行删除
+        vectorstore.delete(where={"source_file": file_name})
+
+        # 统计删除后向量库状态
+        all_results = vectorstore.get(include=["metadatas"])
+        remaining_files: set[str] = set()
+        for meta in all_results.get("metadatas", []):
+            if meta and isinstance(meta, dict):
+                name = meta.get("source_file")
+                if name:
+                    remaining_files.add(name)
+
+        remaining_text = (
+            "\n".join(f"- {f}" for f in sorted(remaining_files))
+            if remaining_files
+            else "(空)"
         )
 
-
-        return f"文件 {file_name} 的向量数据已成功删除。"
+        return (
+            f"✅ 已删除文件 {file_name}\n"
+            f"共移除 {deleted_count} 个 chunks\n\n"
+            f"当前向量库剩余文件：\n{remaining_text}"
+        )
 
     except Exception as e:
         return (
